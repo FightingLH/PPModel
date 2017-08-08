@@ -8,13 +8,38 @@
 
 #import "PPKit.h"
 #import <objc/runtime.h>
+static void *PPModelCachedPropertyKeysKey = &PPModelCachedPropertyKeysKey;
 @implementation PPKit
+
+static BOOL PPValidateAndSetValue(id obj,NSString *key,id value,BOOL forceUpdate,NSError **error)
+{
+    __autoreleasing id validateValue = value;
+    @try {
+        if ([obj validateValue:&validateValue forKey:key error:error]) {
+            if (forceUpdate || value != validateValue) {
+                [obj setValue:validateValue forKey:key];
+            }
+        }
+    } @catch (NSException *exception) {
+        if (error != NULL) {
+         
+        }
+    }
+
+}
 
 - (NSString *)description
 {
-    Class   obj = [self class];
-    NSArray *proList = [obj _pp_modelProperty:self];
-    return [self dictionaryWithValuesForKeys:proList].description;
+    return [self dictionaryWithValuesForKeys:self.class.propertyKeys].description;
+}
+
++ (NSArray *)propertyKeys
+{
+    NSArray *cachedKeys = objc_getAssociatedObject(self, &PPModelCachedPropertyKeysKey);
+    if (cachedKeys != nil) return cachedKeys;
+    NSArray *keys =  [self _pp_modelProperty:self];
+    objc_setAssociatedObject(self, PPModelCachedPropertyKeysKey, keys, OBJC_ASSOCIATION_COPY);
+    return keys;
 }
 
 + (NSDictionary *)_pp_dictionaryWithJSON:(id)json
@@ -64,6 +89,17 @@
     }
     free(property);
     return propertyArray.copy;
+}
+
+- (BOOL)validate:(NSError **)error
+{
+    for ( NSString *key in self.class.propertyKeys)
+    {
+        id value = [self valueForKey:key];
+        BOOL success = PPValidateAndSetValue(self, key, value, NO, error);
+        if (!success) return NO;
+    }
+    return YES;
 }
 
 @end
